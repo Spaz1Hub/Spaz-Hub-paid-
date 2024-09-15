@@ -1,0 +1,219 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+ 
+local Window = Rayfield:CreateWindow({
+   Name = "Spaz Hub [Free]",
+   LoadingTitle = "Spaz Scripts",
+   LoadingSubtitle = "by Spaz",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = nil, -- Create a custom folder for your hub/game
+      FileName = "nil"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+   },
+   KeySystem = true, -- Set this to true to use our key system
+   KeySettings = {
+      Title = "Spaz Key [Free]",
+      Subtitle = "",
+      Note = "get key from discord server",
+      FileName = "Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
+      SaveKey = false, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"SpazFreeKeylimitedtimeonly"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+   }
+})
+
+local MainTab = Window:CreateTab("Combat", nil)
+local Section = MainTab:CreateSection("Combat")
+
+local Button = MainTab:CreateButton({
+   Name = "Aimlock (Hold X)",
+   Callback = function()
+       getgenv().WeAreDevs = {
+           Aimbot = {
+               Checks = {
+                   Team = false,
+                   Wall = false
+               },
+               Bypass = false,
+               Binding = {
+                   Key = "X",
+                   Mode = "Hold"
+               },
+               HitPart = "Head",  -- Select the body part to aim at
+               VelocityPrediction = {
+                   Enabled = true,  -- Enable or disable velocity prediction
+                   Value = 0.165    -- Customize the prediction value (adjust as needed)
+               }
+           }
+       }
+       
+       local Players = game:GetService("Players")
+       local UserInputService = game:GetService("UserInputService")
+       local RunService = game:GetService("RunService")
+       local Teams = game:GetService("Teams")
+       
+       local LocalPlayer = Players.LocalPlayer
+       local Mouse = LocalPlayer:GetMouse()
+       local Camera = workspace.CurrentCamera
+       local enabled = false
+       local Target = nil
+       
+       function GetClosestPlayer()
+           if Target and Target.Parent and Target.Character and Target.Character:FindFirstChild("Humanoid") and Target.Character.Humanoid.Health > 0 then
+               return Target
+           end
+       
+           local closestPlayer = nil
+           local shortestDistance = math.huge
+           local isFFA = #Teams:GetTeams() <= 1
+       
+           for _, player in pairs(Players:GetPlayers()) do
+               if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 and player.Character:FindFirstChild("HumanoidRootPart") then
+                   if WeAreDevs.Aimbot.Checks.Team and not isFFA then
+                       if player.Team == LocalPlayer.Team then
+                           continue
+                       end
+                   end
+       
+                   if WeAreDevs.Aimbot.Checks.Wall then
+                       local ray = Ray.new(Camera.CFrame.Position, (player.Character.HumanoidRootPart.Position - Camera.CFrame.Position).Unit * 300)
+                       local hit, _ = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+                       if hit and not hit:IsDescendantOf(player.Character) then
+                           continue
+                       end
+                   end
+       
+                   local screenPos, onScreen = Camera:WorldToScreenPoint(player.Character.HumanoidRootPart.Position)
+                   
+                   if onScreen then
+                       local dist = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                       if dist < shortestDistance then
+                           closestPlayer = player
+                           shortestDistance = dist
+                       end
+                   end
+               end
+           end
+       
+           Target = closestPlayer
+           return closestPlayer
+       end
+       
+       function AimAt(target)
+           if WeAreDevs.Aimbot.Bypass then
+               local targetPart = target.Character[WeAreDevs.Aimbot.HitPart]
+               local targetPos = Camera:WorldToScreenPoint(targetPart.Position)
+       
+               if WeAreDevs.Aimbot.VelocityPrediction.Enabled then
+                   local targetVelocity = target.Character.HumanoidRootPart.Velocity
+                   targetPos = targetPos + Vector3.new(targetVelocity.X, targetVelocity.Y, targetVelocity.Z) * WeAreDevs.Aimbot.VelocityPrediction.Value
+               end
+       
+               local mousePos = Camera:WorldToScreenPoint(Mouse.Hit.p)
+               mousemoverel(targetPos.X - mousePos.X, targetPos.Y - mousePos.Y)
+           else
+               local targetPart = target.Character[WeAreDevs.Aimbot.HitPart]
+               local targetPos = targetPart.Position
+       
+               if WeAreDevs.Aimbot.VelocityPrediction.Enabled then
+                   local targetVelocity = target.Character.HumanoidRootPart.Velocity
+                   targetPos = targetPos + targetVelocity * WeAreDevs.Aimbot.VelocityPrediction.Value
+               end
+       
+               Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+           end
+       end
+       
+       function GetConnections(object, connectionName)
+           local connections = {}
+           for _, connection in pairs(getconnections(object[connectionName])) do
+               table.insert(connections, connection)
+           end
+           return connections
+       end
+       
+       RunService:BindToRenderStep("wrd", Enum.RenderPriority.Camera.Value, function()
+           if enabled then
+               local target = GetClosestPlayer()
+               if target then
+                   AimAt(target)
+               end
+           end
+       end)
+       
+       function IsKeyDown(key)
+           if key == "MB1" then
+               return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+           elseif key == "MB2" then
+               return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+           elseif Enum.KeyCode[key] then
+               return UserInputService:IsKeyDown(Enum.KeyCode[key])
+           end
+           return false
+       end
+       
+       function HandleInput(input, gameProcessed)
+           local bindKey = WeAreDevs.Aimbot.Binding.Key
+           local isCorrectInput = 
+               (bindKey == "MB1" and input.UserInputType == Enum.UserInputType.MouseButton1) or
+               (bindKey == "MB2" and input.UserInputType == Enum.UserInputType.MouseButton2) or
+               (Enum.KeyCode[bindKey] and input.KeyCode == Enum.KeyCode[bindKey])
+       
+           if isCorrectInput then
+               if WeAreDevs.Aimbot.Binding.Mode == "Toggle" then
+                   if input.UserInputState == Enum.UserInputState.Begin then
+                       enabled = not enabled
+                       if not enabled then
+                           Target = nil
+                       end
+                   end
+               elseif WeAreDevs.Aimbot.Binding.Mode == "Hold" then
+                   enabled = input.UserInputState == Enum.UserInputState.Begin
+                   if not enabled then
+                       Target = nil
+                   end
+               end
+           end
+       end
+       
+       UserInputService.InputBegan:Connect(HandleInput)
+       UserInputService.InputEnded:Connect(HandleInput)
+       
+       local connection
+       connection = game.Close:Connect(function()
+           RunService:UnbindFromRenderStep("wrd")
+           connection:Disconnect()
+       end)
+   end,
+})
+
+local PlayerTab = Window:CreateTab("Player", nil)
+ local Section = PlayerTab:CreateSection("Player")
+ 
+ local Slider = PlayerTab:CreateSlider({
+    Name = "WalkSpeed",
+    Range = {1, 100},
+    Increment = 1,
+    Suffix = "Speed",
+    CurrentValue = 16,
+    Flag = "sliderws", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Callback = function(Value)
+         game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = (Value)
+    end,
+ })
+ 
+ local Slider = PlayerTab:CreateSlider({
+    Name = "JumpPower",
+    Range = {1, 100},
+    Increment = 1,
+    Suffix = "Speed",
+    CurrentValue = 16,
+    Flag = "sliderjp", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Callback = function(Value)
+         game.Players.LocalPlayer.Character.Humanoid.JumpPower = (Value)
+    end,
+ })
